@@ -7,6 +7,8 @@ from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, \
     QListWidget, QLabel, QListWidgetItem, QFileDialog
 
+from ascii_convert import ImageToAsciiConverter
+
 
 class ImageViewer(QWidget):
 
@@ -22,6 +24,7 @@ class ImageViewer(QWidget):
         self.scaled_max_dimension = 800
         self.current_filepath = ""
         self.current_index = 0
+        self.ascii_converter = ImageToAsciiConverter()
 
         self.init_UI()
         self.event_handler()
@@ -40,7 +43,10 @@ class ImageViewer(QWidget):
         # image layout
         self.image_layout = QVBoxLayout()
         self.image_label = QLabel()
+        self.image_info_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_info_label.setFixedHeight(20)
 
         # image fileter buttons
         self.filter_buttons_layout = QHBoxLayout()
@@ -48,19 +54,37 @@ class ImageViewer(QWidget):
         self.blur_button = QPushButton("Blur")
         self.invert_button = QPushButton("Invert")
         self.gray_button = QPushButton("Grayscale")
+        self.ascii_button = QPushButton("ASCII")
         self.filter_buttons_layout.addWidget(self.contour_button)
         self.filter_buttons_layout.addWidget(self.blur_button)
         self.filter_buttons_layout.addWidget(self.invert_button)
         self.filter_buttons_layout.addWidget(self.gray_button)
+        self.filter_buttons_layout.addWidget(self.ascii_button)
         #
         self.image_layout.addWidget(self.image_label)
+        self.image_layout.addWidget(self.image_info_label)
         self.image_layout.addLayout(self.filter_buttons_layout)
 
         self.master_layout.addLayout(self.file_layout, 1)
         self.master_layout.addLayout(self.image_layout, 3)
 
         self.setLayout(self.master_layout)
-        #self.master_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.style()
+
+    def style(self):
+
+        # style the selection in the file list widget
+        self.file_list.setStyleSheet("""
+            QListWidget::item:selected {
+                background-color: #4A90E2; /* Strong blue highlight */
+                color: white; /* White text for contrast */
+                border: 2px solid #357ABD; /* Optional border */
+            }
+            QListWidget::item:hover {
+                background-color: #A0C4FF; /* Light blue when hovering */
+            }
+        """)
 
     def event_handler(self):
         self.open_folder_button.clicked.connect(self.set_directory)
@@ -69,6 +93,7 @@ class ImageViewer(QWidget):
         self.blur_button.clicked.connect(self.blur)
         self.invert_button.clicked.connect(self.invert)
         self.gray_button.clicked.connect(self.grayscale)
+        self.ascii_button.clicked.connect(self.ascii)
 
     def set_directory(self):
         path = QFileDialog.getExistingDirectory()
@@ -87,7 +112,12 @@ class ImageViewer(QWidget):
         # Create QPixmap object
         pixmap = self.create_pixmap_from_url(self.current_filepath)
         # Set the QPixmap object on the label to display the image
+        self.display_image_info()
         self.image_label.setPixmap(pixmap)
+
+    def display_image_info(self):
+        self.image_info_label.setText(
+            f"Image {self.current_index + 1} of {len(self.file_list)}: {os.path.basename(self.current_filepath)}")
 
 
     def load_images(self, folder_path):
@@ -111,6 +141,7 @@ class ImageViewer(QWidget):
             self.current_filepath = first_filepath
 
             self.image_label.setPixmap(pixmap)
+            self.display_image_info()
         else:
             print("File not found!")
 
@@ -161,6 +192,7 @@ class ImageViewer(QWidget):
                 self.current_filepath = item_filepath
 
                 self.image_label.setPixmap(pixmap)
+                self.display_image_info()
 
             print(index)
 
@@ -263,6 +295,26 @@ class ImageViewer(QWidget):
         print(f"Image Mode: {image.mode}")
 
         image = image.convert('L')
+
+        # image.show()
+        # Convert to RGB if the image has an alpha channel
+        if image.mode == 'RGBA':
+            image = image.convert('RGB')
+
+        try:
+
+            q_image = ImageQt(image)
+
+            pixmap = self.create_pixmap_from_image(q_image)
+
+            self.image_label.setPixmap(pixmap)
+
+        except IOError as e:
+            print(f"Error processing image {self.current_filepath}: {e}")
+
+    def ascii(self):
+
+        image = self.ascii_converter.convert(self.current_filepath)
 
         # image.show()
         # Convert to RGB if the image has an alpha channel
